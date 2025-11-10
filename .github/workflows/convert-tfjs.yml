@@ -1,0 +1,47 @@
+name: Convert .h5 to TFJS model
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  convert:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          pip install tensorflow==2.14.1 tensorflowjs==4.22.0
+
+      - name: Convert Keras .h5 to TFJS
+        run: |
+          H5_FILE="ecg_resnet50_classifier_final.h5"
+          OUT_DIR="model"
+          rm -rf $OUT_DIR
+          mkdir -p $OUT_DIR
+          tensorflowjs_converter --input_format=keras --weight_shard_size_bytes=4194304 "$H5_FILE" "$OUT_DIR"
+
+      - name: Show output file list
+        run: |
+          echo "Contents of model/:"
+          ls -la model | sed -n '1,200p'
+
+      - name: Commit converted model back to repo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add model
+          git commit -m "Add TFJS converted model (auto-generated) [skip ci]" || echo "No changes to commit"
+          git push origin HEAD:main || echo "Push failed; maybe no changes"
