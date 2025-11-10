@@ -29,7 +29,7 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install safe binary stack (numpy1.x, h5py, protobuf, six) and TF/TFJS
+      - name: Install safe binary stack (NumPy 1.x, h5py, protobuf, six, ml-dtypes) and TF/TFJS
         env:
           PIP_NO_CACHE_DIR: "off"
         run: |
@@ -38,21 +38,24 @@ jobs:
           # 1) Ensure NumPy 1.x is installed first (TF-compatible)
           pip install "numpy==1.24.4"
 
-          # 2) h5py pinned to a version compatible with numpy 1.24
+          # 2) h5py pinned to a version compatible with NumPy 1.24
           pip install "h5py==3.8.0"
 
-          # 3) protobuf provides the 'google' namespace needed by TF
+          # 3) protobuf provides the 'google' namespace needed by TensorFlow
           pip install "protobuf==3.20.3"
 
           # 4) six is required by TensorFlow internals
           pip install "six==1.16.0"
 
-          # 5) Install TensorFlow and tensorflowjs WITHOUT letting pip attempt to resolve/upgrade dependencies.
+          # 5) ml_dtypes is a required dependency for TensorFlow dtypes
+          pip install "ml-dtypes"
+
+          # 6) Install TensorFlow and tensorflowjs WITHOUT dependency resolution
           pip install --no-deps "tensorflow==2.14.0"
           pip install --no-deps "tensorflowjs==4.22.0"
 
-          # 6) Quick version check for logs
-          python -c "import numpy as np, h5py, six, google.protobuf as gp; import tensorflow as tf; print('numpy', np.__version__); print('h5py', h5py.__version__); print('six', six.__version__); print('tf', tf.__version__)"
+          # 7) Verify versions for debugging
+          python -c "import numpy as np, h5py, six, ml_dtypes, google.protobuf as gp, tensorflow as tf; print('numpy', np.__version__); print('h5py', h5py.__version__); print('six', six.__version__); print('ml_dtypes OK'); print('tf', tf.__version__)"
 
       - name: Convert Keras .h5 to TFJS
         run: |
