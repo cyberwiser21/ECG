@@ -14,15 +14,13 @@ jobs:
         uses: actions/checkout@v4
         with:
           lfs: true
-          fetch-depth: 0    # fetch full history (safer for LFS)
+          fetch-depth: 0
 
       - name: Ensure LFS objects are present
         run: |
-          # Ensure git-lfs is available on runner and pull LFS files
           git lfs install --local || true
-          # Pull only the model .h5 to keep it fast
           git lfs pull --include="ecg_resnet50_classifier_final.h5" || git lfs pull || true
-          echo "Listing file size and head of file to validate it's binary:"
+          echo "Model file info:"
           ls -lh ecg_resnet50_classifier_final.h5 || true
           head -c 8 ecg_resnet50_classifier_final.h5 | xxd -p -c 8 || true
 
@@ -31,10 +29,14 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install dependencies
+      - name: Install correct NumPy first (avoid TF/NumPy mismatch), then TF & TFJS
+        env:
+          PIP_NO_CACHE_DIR: 'off'
         run: |
           python -m pip install --upgrade pip setuptools wheel
-          # Use a stable TF version (2.14.0) and matching tfjs; install h5py too
+          # Install an older NumPy that is compatible with TF builds on the runner
+          pip install "numpy==1.24.4"
+          # Now install TensorFlow and tensorflowjs (pinned versions known to work)
           pip install "tensorflow==2.14.0" "tensorflowjs==4.22.0" "h5py"
 
       - name: Convert Keras .h5 to TFJS
@@ -44,7 +46,6 @@ jobs:
           echo "Converting $H5_FILE to TFJS model..."
           rm -rf "$OUT_DIR"
           mkdir -p "$OUT_DIR"
-          # Use shard size to reduce # of .bin files (optional)
           tensorflowjs_converter --input_format=keras --weight_shard_size_bytes=4194304 "$H5_FILE" "$OUT_DIR"
           echo "Conversion done. Files in $OUT_DIR:"
           ls -la "$OUT_DIR" || true
@@ -56,4 +57,3 @@ jobs:
           git add model
           git commit -m "Add TFJS converted model (auto-generated) [skip ci]" || echo "No changes to commit"
           git push origin HEAD:main || echo "Push failed; maybe no changes"
-
