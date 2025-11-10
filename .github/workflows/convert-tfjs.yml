@@ -10,10 +10,21 @@ jobs:
   convert:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
+      - name: Checkout repository (with LFS)
         uses: actions/checkout@v4
         with:
-          persist-credentials: true
+          lfs: true
+          fetch-depth: 0    # fetch full history (safer for LFS)
+
+      - name: Ensure LFS objects are present
+        run: |
+          # Ensure git-lfs is available on runner and pull LFS files
+          git lfs install --local || true
+          # Pull only the model .h5 to keep it fast
+          git lfs pull --include="ecg_resnet50_classifier_final.h5" || git lfs pull || true
+          echo "Listing file size and head of file to validate it's binary:"
+          ls -lh ecg_resnet50_classifier_final.h5 || true
+          head -c 8 ecg_resnet50_classifier_final.h5 | xxd -p -c 8 || true
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -23,20 +34,20 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip setuptools wheel
-          pip install tensorflow==2.14.1 tensorflowjs==4.22.0
+          # Use a stable TF version (2.14.0) and matching tfjs; install h5py too
+          pip install "tensorflow==2.14.0" "tensorflowjs==4.22.0" "h5py"
 
       - name: Convert Keras .h5 to TFJS
         run: |
           H5_FILE="ecg_resnet50_classifier_final.h5"
           OUT_DIR="model"
-          rm -rf $OUT_DIR
-          mkdir -p $OUT_DIR
+          echo "Converting $H5_FILE to TFJS model..."
+          rm -rf "$OUT_DIR"
+          mkdir -p "$OUT_DIR"
+          # Use shard size to reduce # of .bin files (optional)
           tensorflowjs_converter --input_format=keras --weight_shard_size_bytes=4194304 "$H5_FILE" "$OUT_DIR"
-
-      - name: Show output file list
-        run: |
-          echo "Contents of model/:"
-          ls -la model | sed -n '1,200p'
+          echo "Conversion done. Files in $OUT_DIR:"
+          ls -la "$OUT_DIR" || true
 
       - name: Commit converted model back to repo
         run: |
@@ -45,3 +56,4 @@ jobs:
           git add model
           git commit -m "Add TFJS converted model (auto-generated) [skip ci]" || echo "No changes to commit"
           git push origin HEAD:main || echo "Push failed; maybe no changes"
+
