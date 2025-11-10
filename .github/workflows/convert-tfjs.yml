@@ -29,25 +29,28 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install NumPy (1.x) + h5py, then TensorFlow and TFJS (no-deps)
+      - name: Install safe binary stack (NumPy1.x, h5py, protobuf) and TF/TFJS
         env:
           PIP_NO_CACHE_DIR: "off"
         run: |
           python -m pip install --upgrade pip setuptools wheel
 
-          # 1) Ensure NumPy 1.x is installed first (TF-compatible)
+          # 1) Install NumPy 1.x first (TF-compatible)
           pip install "numpy==1.24.4"
 
-          # 2) Install h5py pinned to a version compatible with numpy1.24
+          # 2) h5py pinned to version compatible with numpy 1.24
           pip install "h5py==3.8.0"
 
-          # 3) Install TensorFlow and tensorflowjs WITHOUT letting pip attempt to resolve/upgrade dependencies.
-          #    This prevents pip from upgrading NumPy to 2.x during dependency resolution.
+          # 3) protobuf provides the 'google' namespace needed by TF
+          #    pin to a stable v3.x that TensorFlow works with
+          pip install "protobuf==3.20.3"
+
+          # 4) Install TensorFlow and tensorflowjs WITHOUT dependency resolution
           pip install --no-deps "tensorflow==2.14.0"
           pip install --no-deps "tensorflowjs==4.22.0"
 
-          # 4) Verify versions (for logs)
-          python -c "import sys, numpy as np; import h5py; print('numpy', np.__version__); import tensorflow as tf; print('tf', tf.__version__)"
+          # 5) Quick version check for logs
+          python -c "import numpy as np, sys; print('numpy', np.__version__); import h5py, google.protobuf as gp; import tensorflow as tf; print('tf', tf.__version__)"
       
       - name: Convert Keras .h5 to TFJS
         run: |
